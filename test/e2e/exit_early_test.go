@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive
+	. "github.com/onsi/gomega"    //nolint:revive
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/cli-utils/pkg/apply"
@@ -25,7 +25,9 @@ func exitEarlyTest(ctx context.Context, c client.Client, invConfig invconfig.Inv
 	By("exit early on invalid object")
 	applier := invConfig.ApplierFactoryFunc()
 
-	inv := invConfig.InvWrapperFunc(invConfig.FactoryFunc(inventoryName, namespaceName, "test"))
+	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
+	inventoryInfo, err := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	Expect(err).ToNot(HaveOccurred())
 
 	fields := struct{ Namespace string }{Namespace: namespaceName}
 	// valid pod
@@ -42,7 +44,7 @@ func exitEarlyTest(ctx context.Context, c client.Client, invConfig invconfig.Inv
 		invalidPodObj,
 	}
 
-	applierEvents := e2eutil.RunCollect(applier.Run(ctx, inv, resources, apply.ApplierOptions{
+	applierEvents := e2eutil.RunCollect(applier.Run(ctx, inventoryInfo, resources, apply.ApplierOptions{
 		EmitStatusEvents: false,
 		ValidationPolicy: validation.ExitEarly,
 	}))

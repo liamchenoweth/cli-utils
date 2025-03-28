@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive
+	. "github.com/onsi/gomega"    //nolint:revive
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/cli-utils/pkg/apply"
 	"sigs.k8s.io/cli-utils/test/e2e/e2eutil"
@@ -59,8 +59,10 @@ type: Warning
 // - inventory should not double-track the object i.e. we should hold reference only to the object with the groupKind that was most recently applied
 func currentUIDFilterTest(ctx context.Context, c client.Client, invConfig invconfig.InventoryConfig, inventoryName, namespaceName string) {
 	applier := invConfig.ApplierFactoryFunc()
+
 	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
-	inventoryInfo := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	inventoryInfo, err := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	Expect(err).ToNot(HaveOccurred())
 
 	templateFields := struct{ Namespace string }{Namespace: namespaceName}
 	v1Event := e2eutil.TemplateToUnstructured(v1EventTemplate, templateFields)
@@ -70,7 +72,7 @@ func currentUIDFilterTest(ctx context.Context, c client.Client, invConfig invcon
 	resources := []*unstructured.Unstructured{
 		v1Event,
 	}
-	err := e2eutil.Run(applier.Run(ctx, inventoryInfo, resources, apply.ApplierOptions{}))
+	err = e2eutil.Run(applier.Run(ctx, inventoryInfo, resources, apply.ApplierOptions{}))
 	Expect(err).ToNot(HaveOccurred())
 
 	By("Verify resource available in both apiGroups")

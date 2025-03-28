@@ -122,18 +122,14 @@ metadata:
 
 // Returns a inventory object with the inventory set from
 // the passed "children".
-func createInventoryInfo(children ...*unstructured.Unstructured) inventory.Info {
+func newInventory(children ...*unstructured.Unstructured) (inventory.Inventory, error) {
 	inventoryObjCopy := inventoryObj.DeepCopy()
-	wrappedInv := inventory.WrapInventoryObj(inventoryObjCopy)
-	objs := object.UnstructuredSetToObjMetadataSet(children)
-	if err := wrappedInv.Store(objs, nil); err != nil {
-		return nil
-	}
-	obj, err := wrappedInv.GetObject()
+	wrappedInv, err := inventory.ConfigMapToInventoryObj(inventoryObjCopy)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return inventory.WrapInventoryInfoObj(obj)
+	wrappedInv.SetObjectRefs(object.UnstructuredSetToObjMetadataSet(children))
+	return wrappedInv, nil
 }
 
 // podDeletionPrevention object contains the "on-remove:keep" lifecycle directive.
@@ -574,9 +570,9 @@ func TestPrune(t *testing.T) {
 			for _, obj := range tc.clusterObjs {
 				clusterObjs = append(clusterObjs, obj)
 			}
-			pruneIds := object.UnstructuredSetToObjMetadataSet(tc.pruneObjs)
+			pruneIDs := object.UnstructuredSetToObjMetadataSet(tc.pruneObjs)
 			po := Pruner{
-				InvClient: inventory.NewFakeClient(pruneIds),
+				InvClient: inventory.NewFakeClient(pruneIDs),
 				Client:    fake.NewSimpleDynamicClient(scheme.Scheme, clusterObjs...),
 				Mapper: testrestmapper.TestOnlyStaticRESTMapper(scheme.Scheme,
 					scheme.Scheme.PrioritizedVersionsAllGroups()...),
@@ -585,12 +581,12 @@ func TestPrune(t *testing.T) {
 			// the events that can be put on it.
 			eventChannel := make(chan event.Event, len(tc.pruneObjs)+1)
 			resourceCache := cache.NewResourceCacheMap()
-			taskContext := taskrunner.NewTaskContext(eventChannel, resourceCache)
+			taskContext := taskrunner.NewTaskContext(t.Context(), eventChannel, resourceCache)
 			taskName := "test-0"
 			err := func() error {
 				defer close(eventChannel)
 				// Run the prune and validate.
-				return po.Prune(tc.pruneObjs, tc.pruneFilters, taskContext, taskName, tc.options)
+				return po.Prune(taskContext, tc.pruneObjs, tc.pruneFilters, taskName, tc.options)
 			}()
 
 			if err != nil {
@@ -620,21 +616,21 @@ func TestPrune(t *testing.T) {
 			for _, id := range tc.expectedFailed {
 				assert.Truef(t, im.IsFailedDelete(id), "Prune() should mark object as failed: %s", id)
 			}
-			for _, id := range pruneIds.Diff(tc.expectedFailed) {
+			for _, id := range pruneIDs.Diff(tc.expectedFailed) {
 				assert.Falsef(t, im.IsFailedDelete(id), "Prune() should NOT mark object as failed: %s", id)
 			}
 			// validate record of skipped prunes
 			for _, id := range tc.expectedSkipped {
 				assert.Truef(t, im.IsSkippedDelete(id), "Prune() should mark object as skipped: %s", id)
 			}
-			for _, id := range pruneIds.Diff(tc.expectedSkipped) {
+			for _, id := range pruneIDs.Diff(tc.expectedSkipped) {
 				assert.Falsef(t, im.IsSkippedDelete(id), "Prune() should NOT mark object as skipped: %s", id)
 			}
 			// validate record of abandoned objects
 			for _, id := range tc.expectedAbandoned {
 				assert.Truef(t, taskContext.IsAbandonedObject(id), "Prune() should mark object as abandoned: %s", id)
 			}
-			for _, id := range pruneIds.Diff(tc.expectedAbandoned) {
+			for _, id := range pruneIDs.Diff(tc.expectedAbandoned) {
 				assert.Falsef(t, taskContext.IsAbandonedObject(id), "Prune() should NOT mark object as abandoned: %s", id)
 			}
 		})
@@ -676,16 +672,16 @@ func TestPruneDeletionPrevention(t *testing.T) {
 			// the events that can be put on it.
 			eventChannel := make(chan event.Event, 2)
 			resourceCache := cache.NewResourceCacheMap()
-			taskContext := taskrunner.NewTaskContext(eventChannel, resourceCache)
+			taskContext := taskrunner.NewTaskContext(t.Context(), eventChannel, resourceCache)
 			err := func() error {
 				defer close(eventChannel)
 				// Run the prune and validate.
-				return po.Prune([]*unstructured.Unstructured{tc.pruneObj}, []filter.ValidationFilter{filter.PreventRemoveFilter{}}, taskContext, "test-0", tc.options)
+				return po.Prune(taskContext, []*unstructured.Unstructured{tc.pruneObj}, []filter.ValidationFilter{filter.PreventRemoveFilter{}}, "test-0", tc.options)
 			}()
 			require.NoError(t, err)
 
 			// verify that the object no longer has the annotation
-			obj, err := po.getObject(pruneID)
+			obj, err := po.getObject(t.Context(), pruneID)
 			require.NoError(t, err)
 
 			for annotation := range obj.GetAnnotations() {
@@ -761,9 +757,9 @@ func TestPruneWithErrors(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			pruneIds := object.UnstructuredSetToObjMetadataSet(tc.pruneObjs)
+			pruneIDs := object.UnstructuredSetToObjMetadataSet(tc.pruneObjs)
 			po := Pruner{
-				InvClient: inventory.NewFakeClient(pruneIds),
+				InvClient: inventory.NewFakeClient(pruneIDs),
 				// Set up the fake dynamic client to recognize all objects, and the RESTMapper.
 				Client: &fakeDynamicClient{
 					resourceInterface: &failureNamespaceClient{},
@@ -775,7 +771,7 @@ func TestPruneWithErrors(t *testing.T) {
 			// the events that can be put on it.
 			eventChannel := make(chan event.Event, len(tc.pruneObjs))
 			resourceCache := cache.NewResourceCacheMap()
-			taskContext := taskrunner.NewTaskContext(eventChannel, resourceCache)
+			taskContext := taskrunner.NewTaskContext(t.Context(), eventChannel, resourceCache)
 			err := func() error {
 				defer close(eventChannel)
 				var opts Options
@@ -785,7 +781,7 @@ func TestPruneWithErrors(t *testing.T) {
 					opts = defaultOptions
 				}
 				// Run the prune and validate.
-				return po.Prune(tc.pruneObjs, []filter.ValidationFilter{}, taskContext, "test-0", opts)
+				return po.Prune(taskContext, tc.pruneObjs, []filter.ValidationFilter{}, "test-0", opts)
 			}()
 			if err != nil {
 				t.Fatalf("Unexpected error during Prune(): %#v", err)
@@ -859,18 +855,19 @@ func TestGetPruneObjs(t *testing.T) {
 				Mapper: testrestmapper.TestOnlyStaticRESTMapper(scheme.Scheme,
 					scheme.Scheme.PrioritizedVersionsAllGroups()...),
 			}
-			currentInventory := createInventoryInfo(tc.prevInventory...)
-			actualObjs, err := po.GetPruneObjs(currentInventory, tc.localObjs, Options{})
+			currentInventory, err := newInventory(tc.prevInventory...)
+			require.NoError(t, err)
+			actualObjs, err := po.GetPruneObjs(t.Context(), currentInventory, tc.localObjs, Options{})
 			if err != nil {
 				t.Fatalf("unexpected error %s returned", err)
 			}
 			if len(tc.expectedObjs) != len(actualObjs) {
 				t.Fatalf("expected %d prune objs, got %d", len(tc.expectedObjs), len(actualObjs))
 			}
-			actualIds := object.UnstructuredSetToObjMetadataSet(actualObjs)
-			expectedIds := object.UnstructuredSetToObjMetadataSet(tc.expectedObjs)
-			if !object.ObjMetadataSetEquals(expectedIds, actualIds) {
-				t.Errorf("expected prune objects (%v), got (%v)", expectedIds, actualIds)
+			actualIDs := object.UnstructuredSetToObjMetadataSet(actualObjs)
+			expectedIDs := object.UnstructuredSetToObjMetadataSet(tc.expectedObjs)
+			if !object.ObjMetadataSetEquals(expectedIDs, actualIDs) {
+				t.Errorf("expected prune objects (%v), got (%v)", expectedIDs, actualIDs)
 			}
 		})
 	}
@@ -882,7 +879,7 @@ func TestGetObject_NoMatchError(t *testing.T) {
 		Mapper: testrestmapper.TestOnlyStaticRESTMapper(scheme.Scheme,
 			scheme.Scheme.PrioritizedVersionsAllGroups()...),
 	}
-	_, err := po.getObject(testutil.ToIdentifier(t, crontabCRManifest))
+	_, err := po.getObject(t.Context(), testutil.ToIdentifier(t, crontabCRManifest))
 	if err == nil {
 		t.Fatalf("expected GetObject() to return a NoKindMatchError, got nil")
 	}
@@ -898,7 +895,7 @@ func TestGetObject_NotFoundError(t *testing.T) {
 			scheme.Scheme.PrioritizedVersionsAllGroups()...),
 	}
 	id := object.UnstructuredToObjMetadata(pdb)
-	_, err := po.getObject(id)
+	_, err := po.getObject(t.Context(), id)
 	if err == nil {
 		t.Fatalf("expected GetObject() to return a NotFound error, got nil")
 	}
@@ -915,7 +912,7 @@ func TestHandleDeletePrevention(t *testing.T) {
 			scheme.Scheme.PrioritizedVersionsAllGroups()...),
 	}
 	var err error
-	obj, err = po.removeInventoryAnnotation(obj)
+	obj, err = po.removeInventoryAnnotation(t.Context(), obj)
 	if err != nil {
 		t.Fatalf("unexpected error %s returned", err)
 	}
@@ -928,7 +925,7 @@ func TestHandleDeletePrevention(t *testing.T) {
 	}
 
 	// Get the object from the cluster
-	obj, err = po.getObject(testutil.ToIdentifier(t, pdbDeletePreventionManifest))
+	obj, err = po.getObject(t.Context(), testutil.ToIdentifier(t, pdbDeletePreventionManifest))
 	if err != nil {
 		t.Fatalf("unexpected error %s returned", err)
 	}
@@ -978,8 +975,8 @@ func TestPrune_PropagationPolicy(t *testing.T) {
 
 			eventChannel := make(chan event.Event, 1)
 			resourceCache := cache.NewResourceCacheMap()
-			taskContext := taskrunner.NewTaskContext(eventChannel, resourceCache)
-			err := po.Prune([]*unstructured.Unstructured{pdb}, []filter.ValidationFilter{}, taskContext, "test-0", Options{
+			taskContext := taskrunner.NewTaskContext(t.Context(), eventChannel, resourceCache)
+			err := po.Prune(taskContext, []*unstructured.Unstructured{pdb}, []filter.ValidationFilter{}, "test-0", Options{
 				PropagationPolicy: tc.propagationPolicy,
 			})
 			assert.NoError(t, err)

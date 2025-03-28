@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive
+	. "github.com/onsi/gomega"    //nolint:revive
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/cli-utils/pkg/apply"
 	"sigs.k8s.io/cli-utils/pkg/apply/event"
@@ -25,7 +25,8 @@ func emptySetTest(ctx context.Context, c client.Client, invConfig invconfig.Inve
 	applier := invConfig.ApplierFactoryFunc()
 
 	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
-	inventoryInfo := invConfig.InvWrapperFunc(invConfig.FactoryFunc(inventoryName, namespaceName, inventoryID))
+	inventoryInfo, err := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	Expect(err).ToNot(HaveOccurred())
 
 	resources := []*unstructured.Unstructured{}
 

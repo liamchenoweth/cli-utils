@@ -63,7 +63,7 @@ func main() {
 	}
 
 	loader := manifestreader.NewManifestLoader(f)
-	invFactory := inventory.ClusterClientFactory{StatusPolicy: inventory.StatusPolicyNone}
+	invFactory := inventory.ConfigMapClientFactory{StatusPolicy: inventory.StatusPolicyNone}
 
 	names := []string{"init", "apply", "destroy", "diff", "preview", "status"}
 	subCmds := []*cobra.Command{
@@ -72,7 +72,7 @@ func main() {
 		destroy.Command(f, invFactory, loader, ioStreams),
 		diff.NewCommand(f, ioStreams),
 		preview.Command(f, invFactory, loader, ioStreams),
-		status.Command(context.TODO(), f, invFactory, status.NewInventoryLoader(loader)),
+		status.Command(cmd.Context(), f, invFactory, status.NewInventoryLoader(loader)),
 	}
 	for _, subCmd := range subCmds {
 		subCmd.PreRunE = preRunE

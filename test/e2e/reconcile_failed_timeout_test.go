@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive
+	. "github.com/onsi/gomega"    //nolint:revive
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/cli-utils/pkg/apply"
 	"sigs.k8s.io/cli-utils/pkg/apply/event"
@@ -22,9 +22,10 @@ import (
 func reconciliationFailed(ctx context.Context, invConfig invconfig.InventoryConfig, inventoryName, namespaceName string) {
 	By("Apply resources")
 	applier := invConfig.ApplierFactoryFunc()
-	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
 
-	inventoryInfo := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
+	inventoryInfo, err := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	Expect(err).ToNot(HaveOccurred())
 
 	podObj := e2eutil.WithNodeSelector(e2eutil.WithNamespace(e2eutil.ManifestToUnstructured(pod1), namespaceName), "foo", "bar")
 	resources := []*unstructured.Unstructured{
@@ -45,9 +46,10 @@ func reconciliationFailed(ctx context.Context, invConfig invconfig.InventoryConf
 func reconciliationTimeout(ctx context.Context, invConfig invconfig.InventoryConfig, inventoryName, namespaceName string) {
 	By("Apply resources")
 	applier := invConfig.ApplierFactoryFunc()
-	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
 
-	inventoryInfo := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
+	inventoryInfo, err := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	Expect(err).ToNot(HaveOccurred())
 
 	podObj := e2eutil.PodWithImage(e2eutil.WithNamespace(e2eutil.ManifestToUnstructured(pod1), namespaceName), "kubernetes-pause", "does-not-exist")
 	resources := []*unstructured.Unstructured{

@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive
+	. "github.com/onsi/gomega"    //nolint:revive
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/cli-utils/pkg/apis/actuation"
 	"sigs.k8s.io/cli-utils/pkg/apply"
@@ -26,7 +26,9 @@ func namespaceFilterTest(ctx context.Context, c client.Client, invConfig invconf
 	By("apply resources in order based on depends-on annotation")
 	applier := invConfig.ApplierFactoryFunc()
 
-	inv := invConfig.InvWrapperFunc(invConfig.FactoryFunc(inventoryName, namespaceName, "test"))
+	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
+	inventoryInfo, err := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	Expect(err).ToNot(HaveOccurred())
 
 	namespace1Name := fmt.Sprintf("%s-ns1", namespaceName)
 
@@ -47,7 +49,7 @@ func namespaceFilterTest(ctx context.Context, c client.Client, invConfig invconf
 		e2eutil.DeleteUnstructuredIfExists(ctx, c, namespace1Obj)
 	}(ctx, c)
 
-	applierEvents := e2eutil.RunCollect(applier.Run(ctx, inv, resources, apply.ApplierOptions{
+	applierEvents := e2eutil.RunCollect(applier.Run(ctx, inventoryInfo, resources, apply.ApplierOptions{
 		EmitStatusEvents: false,
 	}))
 
@@ -243,7 +245,7 @@ func namespaceFilterTest(ctx context.Context, c client.Client, invConfig invconf
 		podBObj,
 	}
 
-	applierEvents = e2eutil.RunCollect(applier.Run(ctx, inv, resources, apply.ApplierOptions{
+	applierEvents = e2eutil.RunCollect(applier.Run(ctx, inventoryInfo, resources, apply.ApplierOptions{
 		EmitStatusEvents: false,
 	}))
 

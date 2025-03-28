@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive
+	. "github.com/onsi/gomega"    //nolint:revive
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/cli-utils/pkg/apply"
 	"sigs.k8s.io/cli-utils/pkg/apply/event"
@@ -24,7 +24,9 @@ func dependsOnTest(ctx context.Context, c client.Client, invConfig invconfig.Inv
 	By("apply resources in order based on depends-on annotation")
 	applier := invConfig.ApplierFactoryFunc()
 
-	inv := invConfig.InvWrapperFunc(invConfig.FactoryFunc(inventoryName, namespaceName, "test"))
+	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
+	inventoryInfo, err := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	Expect(err).ToNot(HaveOccurred())
 
 	namespace1Name := fmt.Sprintf("%s-ns1", namespaceName)
 	namespace1Obj := e2eutil.UnstructuredNamespace(namespace1Name)
@@ -53,7 +55,7 @@ func dependsOnTest(ctx context.Context, c client.Client, invConfig invconfig.Inv
 		pod3Obj,
 	}
 
-	applierEvents := e2eutil.RunCollect(applier.Run(ctx, inv, resources, apply.ApplierOptions{
+	applierEvents := e2eutil.RunCollect(applier.Run(ctx, inventoryInfo, resources, apply.ApplierOptions{
 		EmitStatusEvents: false,
 	}))
 
@@ -421,7 +423,7 @@ func dependsOnTest(ctx context.Context, c client.Client, invConfig invconfig.Inv
 	By("destroy resources in opposite order")
 	destroyer := invConfig.DestroyerFactoryFunc()
 	options := apply.DestroyerOptions{InventoryPolicy: inventory.PolicyAdoptIfNoInventory}
-	destroyerEvents := e2eutil.RunCollect(destroyer.Run(ctx, inv, options))
+	destroyerEvents := e2eutil.RunCollect(destroyer.Run(ctx, inventoryInfo, options))
 
 	expEvents = []testutil.ExpEvent{
 		{

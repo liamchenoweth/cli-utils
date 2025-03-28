@@ -5,9 +5,10 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive
+	. "github.com/onsi/gomega"    //nolint:revive
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,7 +29,9 @@ func continueOnErrorTest(ctx context.Context, c client.Client, invConfig invconf
 	By("apply an invalid CRD")
 	applier := invConfig.ApplierFactoryFunc()
 
-	inv := invConfig.InvWrapperFunc(invConfig.FactoryFunc(inventoryName, namespaceName, "test"))
+	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
+	inv, err := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	Expect(err).ToNot(HaveOccurred())
 
 	invalidCrdObj := e2eutil.ManifestToUnstructured(invalidCrd)
 	pod1Obj := e2eutil.WithNamespace(e2eutil.ManifestToUnstructured(pod1), namespaceName)

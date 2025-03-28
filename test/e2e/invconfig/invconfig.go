@@ -5,7 +5,6 @@ package invconfig
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -14,12 +13,11 @@ import (
 	"k8s.io/kubectl/pkg/cmd/util"
 	"sigs.k8s.io/cli-utils/pkg/apply"
 	"sigs.k8s.io/cli-utils/pkg/inventory"
-	"sigs.k8s.io/cli-utils/test/e2e/e2eutil"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type inventoryFactoryFunc func(name, namespace, id string) *unstructured.Unstructured
-type invWrapperFunc func(*unstructured.Unstructured) inventory.Info
+type invWrapperFunc func(*unstructured.Unstructured) (inventory.Info, error)
 type applierFactoryFunc func() *apply.Applier
 type destroyerFactoryFunc func() *apply.Destroyer
 type invSizeVerifyFunc func(ctx context.Context, c client.Client, name, namespace, id string, specCount, statusCount int)
@@ -28,7 +26,6 @@ type invNotExistsFunc func(ctx context.Context, c client.Client, name, namespace
 
 type InventoryConfig struct {
 	ClientConfig         *rest.Config
-	Strategy             inventory.Strategy
 	FactoryFunc          inventoryFactoryFunc
 	InvWrapperFunc       invWrapperFunc
 	ApplierFactoryFunc   applierFactoryFunc
@@ -38,15 +35,8 @@ type InventoryConfig struct {
 	InvNotExistsFunc     invNotExistsFunc
 }
 
-func CreateInventoryInfo(invConfig InventoryConfig, inventoryName, namespaceName, inventoryID string) inventory.Info {
-	switch invConfig.Strategy {
-	case inventory.NameStrategy:
-		return invConfig.InvWrapperFunc(invConfig.FactoryFunc(inventoryName, namespaceName, e2eutil.RandomString("inventory-")))
-	case inventory.LabelStrategy:
-		return invConfig.InvWrapperFunc(invConfig.FactoryFunc(e2eutil.RandomString("inventory-"), namespaceName, inventoryID))
-	default:
-		panic(fmt.Errorf("unknown inventory strategy %q", invConfig.Strategy))
-	}
+func CreateInventoryInfo(invConfig InventoryConfig, inventoryName, namespaceName, inventoryID string) (inventory.Info, error) {
+	return invConfig.InvWrapperFunc(invConfig.FactoryFunc(inventoryName, namespaceName, inventoryID))
 }
 
 func newFactory(cfg *rest.Config) util.Factory {

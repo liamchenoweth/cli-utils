@@ -63,9 +63,9 @@ func TestBuildObjMap(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			actual := buildObjMap(tc.objSet, tc.objStatus)
+			actual := buildDataMap(tc.objSet, tc.objStatus)
 			if diff := cmp.Diff(actual, tc.expected); diff != "" {
-				t.Errorf(diff)
+				t.Error(diff)
 			}
 		})
 	}

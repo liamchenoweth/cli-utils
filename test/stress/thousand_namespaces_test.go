@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive
+	. "github.com/onsi/gomega"    //nolint:revive
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/cli-utils/pkg/apply"
@@ -33,9 +33,10 @@ import (
 func thousandNamespacesTest(ctx context.Context, c client.Client, invConfig invconfig.InventoryConfig, inventoryName, namespaceName string) {
 	By("Apply LOTS of resources")
 	applier := invConfig.ApplierFactoryFunc()
-	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
 
-	inventoryInfo := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	inventoryID := fmt.Sprintf("%s-%s", inventoryName, namespaceName)
+	inventoryInfo, err := invconfig.CreateInventoryInfo(invConfig, inventoryName, namespaceName, inventoryID)
+	Expect(err).ToNot(HaveOccurred())
 
 	crdObj := e2eutil.ManifestToUnstructured([]byte(cronTabCRDYaml))
 
